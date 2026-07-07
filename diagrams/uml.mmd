@@ -1,15 +1,56 @@
 classDiagram
-    %% Replace the placeholders below with your actual classes, attributes, methods, and relationships.
-    %% Keep this file updated so it matches your final implementation.
+    %% PawPal+ class diagram — generated from reflection.md
 
-    class ClassName {
-        +type attribute
-        +method() returnType
+    class Owner {
+        +str name
+        +int available_minutes
+        +time preferred_start_time
+        +dict~str, int~ priority_weights
+        +get_priority_weight(category) int
     }
 
-    class AnotherClass {
-        +type attribute
-        +method() returnType
+    class Pet {
+        +str name
+        +str species
+        +str breed
+        +int age
+        +Owner owner
+        +__str__() str
     }
 
-    ClassName --> AnotherClass : relationship
+    class Task {
+        +str name
+        +str category
+        +int duration_minutes
+        +str priority
+        +str recurrence
+        +time preferred_time
+        +bool is_time_critical
+        +str dosage
+        +int times_per_day
+        +list~time~ dose_times
+        +__repr__() str
+        +conflicts_with(other) bool
+        +expand_doses() list~dict~
+    }
+
+    class Scheduler {
+        +Owner owner
+        +Pet pet
+        +list~Task~ tasks
+        +list~dict~ scheduled
+        +list~Task~ excluded
+        +int total_time_used
+        +generate_plan(period) None
+        +sort_by_priority() list~Task~
+        +filter_by_available_time() list~Task~
+        +resolve_conflicts() list~Task~
+        +explain() str
+        +__str__() str
+    }
+
+    Pet --> Owner : owner
+    Scheduler --> Owner : owner
+    Scheduler --> Pet : pet
+    Scheduler o-- Task : tasks
+    Task ..> Task : conflicts_with
