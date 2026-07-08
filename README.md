@@ -78,23 +78,105 @@ Schedule reasoning:
     - [Biscuit] Evening walk at 18:00 [weight 5]
     - [Miso] Brush coat at 09:30 [weight 4]
 
+### TRIAL 2 - after adding the new algorithms
 
+Tasks as entered:
+  18:00  [Biscuit] Evening walk - pending
+  09:30  [Miso] Brush coat - complete
+  anytime  [Biscuit] Insulin - pending
+  09:00  [Miso] Feed - complete
+  08:30  [Biscuit] Breakfast - pending
+
+Sorted by time (sort_by_time):
+  08:30  [Biscuit] Breakfast - pending
+  09:00  [Miso] Feed - complete
+  09:30  [Miso] Brush coat - complete
+  18:00  [Biscuit] Evening walk - pending
+  anytime  [Biscuit] Insulin - pending
+
+Pending only (filter_tasks status='pending'):
+  18:00  [Biscuit] Evening walk - pending
+  anytime  [Biscuit] Insulin - pending
+  08:30  [Biscuit] Breakfast - pending
+
+Complete only (filter_tasks status='complete'):
+  09:30  [Miso] Brush coat - complete
+  09:00  [Miso] Feed - complete
+
+Biscuit's tasks (filter_tasks pet_name='Biscuit'):
+  18:00  [Biscuit] Evening walk - pending
+  anytime  [Biscuit] Insulin - pending
+  08:30  [Biscuit] Breakfast - pending
+
+Today's Schedule - 6 item(s), 75 min:
+  Biscuit (Golden Retriever):
+    08:00-08:05  Insulin
+    08:30-08:45  Breakfast
+    18:00-18:30  Evening walk
+    20:00-20:05  Insulin
+  Miso (Tabby):
+    09:00-09:10  Feed
+    09:30-09:40  Brush coat
+
+Schedule reasoning:
+  Budget: 120 min (used 75).
+  Included (in priority order):
+    - [Biscuit] Insulin at 08:00 [weight 10, medium]
+    - [Biscuit] Breakfast at 08:30 [weight 8, medium]
+    - [Miso] Feed at 09:00 [weight 8, medium]
+    - [Miso] Brush coat at 09:30 [weight 4, medium]
+    - [Biscuit] Evening walk at 18:00 [weight 5, medium]
+    - [Biscuit] Insulin at 20:00 [weight 10, medium]
 
 ## 🧪 Testing PawPal+
 
+Run the full test suite from the project root:
+
 ```bash
-# Run the full test suite:
-pytest
-
-# Run with coverage:
-pytest --cov
+python -m pytest
 ```
 
-Sample test output:
+The tests live in `tests/test_pawpal.py` and exercise the core scheduling
+behaviors in `pawpal_system.py`. Coverage includes:
+
+- **Task basics** — status flips to `complete`, and `add_task()` grows a pet's
+  task list.
+- **Sorting correctness** — `sort_by_time()` returns tasks in chronological
+  order, with flexible (no-time) tasks placed last.
+- **Recurrence logic** — completing a **daily** task spawns a pending copy due
+  the next day, **weekly** rolls forward 7 days, `one_time` tasks never recur,
+  and re-completing a task doesn't pile up duplicates.
+- **Conflict detection** — duplicate/overlapping times are flagged (`find_conflicts`,
+  `check_conflicts`), back-to-back tasks that only touch are *not* flagged, and
+  flexible tasks never conflict.
+- **Conflict resolution** — the highest-priority task wins its overlapping group,
+  leaving no residual overlaps.
+- **Time-budget filtering** — `is_time_critical` tasks are kept even over budget.
+- **Edge cases** — planning an owner/pet with **no tasks** produces an empty
+  schedule instead of crashing.
+
+Sample test output (all passing):
 
 ```
-# Paste your pytest output here
+============================= test session starts =============================
+platform win32 -- Python 3.13.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\cynth\Documents\Projects\ai110-module2show-pawpal-starter
+plugins: anyio-4.14.1
+collected 15 items
+
+tests\test_pawpal.py ...............                                     [100%]
+
+============================= 15 passed in 0.06s ==============================
 ```
+
+### Confidence Level: ★★★★☆ (4 / 5)
+
+All 15 tests pass and cover the happy paths plus the highest-risk edge cases
+(duplicate times, boundary-touching tasks, recurrence rollover, empty input).
+Knocking off one star because a few behaviors aren't pinned down yet — notably
+the **midnight-wrap** arithmetic in `_from_minutes` (a task running past 24:00
+wraps silently) and **gap-aware placement** of flexible tasks around fixed ones.
+Once those have explicit tests, this moves to 5/5.
 
 ## 📐 Smarter Scheduling
 

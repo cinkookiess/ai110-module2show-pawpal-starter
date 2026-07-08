@@ -134,35 +134,50 @@ else:
             )
             st.success(f"Added '{task_title}' for {target_pet}.")
 
-    # Show each pet's tasks in clock order (Scheduler.sort_by_time). Each row
-    # has a "Done" button (which, for a daily/weekly task, spawns the next
-    # occurrence) and a "Remove" button. sort_by_time is a staticmethod, so
-    # it's called on the class directly — no Scheduler instance needed.
+    # Render one task row: time/name/status plus "Done" and "Remove" buttons.
+    # Done marks the task complete (and, for a daily/weekly task, spawns the
+    # next occurrence); it's disabled once complete so it can't spawn twice.
+    def render_task_row(pet, task):
+        row, done, action = st.columns([5, 1, 1])
+        # Show the preferred time (or "anytime") so the ordering is visible.
+        when = f"{task.preferred_time:%H:%M}" if task.preferred_time else "anytime"
+        # Note the recurrence + due date for repeating tasks.
+        repeat = "" if task.recurrence == "one_time" else f" · {task.recurrence} (due {task.due_date:%b %d})"
+        row.write(f"{when} · {task.name} "
+                  f"({task.category}, {task.duration_minutes} min) "
+                  f"— {task.status}{repeat}")
+        if done.button("Done", key=f"done_task_{id(task)}",
+                       disabled=task.status == "complete"):
+            task.mark_complete()  # spawns next_occurrence if recurring
+            st.rerun()
+        if action.button("Remove", key=f"rm_task_{id(task)}"):
+            pet.remove_task(task)
+            st.rerun()
+
+    # Show each pet's tasks in clock order (Scheduler.sort_by_time), with the
+    # pending ones first and completed ones grouped under a "Completed" caption
+    # (split via Scheduler.filter_tasks) so finished tasks stay on record but
+    # move out of the way.
     for pet in owner.pets:
         if pet.tasks:
             st.write(f"**{pet}**")
-            for task in Scheduler.sort_by_time(list(pet.tasks)):
-                row, done, action = st.columns([5, 1, 1])
-                # Show the preferred time (or "anytime") so the ordering is visible.
-                when = f"{task.preferred_time:%H:%M}" if task.preferred_time else "anytime"
-                # Note the recurrence + due date for repeating tasks.
-                repeat = "" if task.recurrence == "one_time" else f" · {task.recurrence} (due {task.due_date:%b %d})"
-                row.write(f"{when} · {task.name} "
-                          f"({task.category}, {task.duration_minutes} min) "
-                          f"— {task.status}{repeat}")
-                # Done is disabled once complete so a recurring task can't spawn twice.
-                if done.button("Done", key=f"done_task_{id(task)}",
-                               disabled=task.status == "complete"):
-                    task.mark_complete()  # spawns next_occurrence if recurring
-                    st.rerun()
-                if action.button("Remove", key=f"rm_task_{id(task)}"):
-                    pet.remove_task(task)
-                    st.rerun()
+            ordered = Scheduler.sort_by_time(list(pet.tasks))
+            pending = Scheduler.filter_tasks(ordered, status="pending")
+            completed = Scheduler.filter_tasks(ordered, status="complete")
+            for task in pending:
+                render_task_row(pet, task)
+            if completed:
+                st.caption("Completed")
+                for task in completed:
+                    render_task_row(pet, task)
 
 st.divider()
 
 # --- Build Schedule: hand all the pets' tasks to one Scheduler ---
 st.subheader("Build Schedule")
+# Heads-up: the plan currently includes every task, even ones marked "Done".
+st.caption("Note: the schedule includes all tasks, including completed ones. "
+           "Marking a task Done does not yet remove it from the generated plan.")
 if st.button("Generate schedule"):
     all_tasks = [task for pet in owner.pets for task in pet.tasks]
     if not all_tasks:
