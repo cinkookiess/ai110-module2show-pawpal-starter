@@ -1,5 +1,6 @@
 from datetime import time
 
+import pandas as pd
 import streamlit as st
 
 from pawpal_system import Owner, Pet, Task, Scheduler
@@ -178,6 +179,26 @@ st.subheader("Build Schedule")
 # Heads-up: the plan currently includes every task, even ones marked "Done".
 st.caption("Note: the schedule includes all tasks, including completed ones. "
            "Marking a task Done does not yet remove it from the generated plan.")
+def _pet_name(task):
+    """Pet name for display, or a dash when a task isn't attached to a pet."""
+    return task.pet.name if task.pet is not None else "—"
+
+
+def _conflict_outcome(task_a, task_b, kept_ids):
+    """Plain-language result of a clash, so the owner knows what PawPal+ will do.
+
+    resolve_conflicts() keeps the higher-priority task of each overlapping group,
+    so we look up which of the pair survived and phrase it as an action.
+    """
+    a_kept, b_kept = id(task_a) in kept_ids, id(task_b) in kept_ids
+    if a_kept and not b_kept:
+        return f"Keeping “{task_a.name}”, dropping “{task_b.name}”"
+    if b_kept and not a_kept:
+        return f"Keeping “{task_b.name}”, dropping “{task_a.name}”"
+    # Neither survived: a third, higher-priority task overlapped both.
+    return "Both give way to a higher-priority task"
+
+
 if st.button("Generate schedule"):
     all_tasks = [task for pet in owner.pets for task in pet.tasks]
     if not all_tasks:
@@ -185,14 +206,66 @@ if st.button("Generate schedule"):
     else:
         scheduler = Scheduler(owner, all_tasks)
 
-        # Warn about time clashes (same pet or across pets) before resolving
-        # them, so the owner knows a task will be dropped and why. check_conflicts
-        # returns a ready-to-show message ("" when there's nothing to warn about).
-        warning = scheduler.check_conflicts()
-        if warning:
-            st.warning(warning + "\n\nThe lower-priority task in each pair "
-                       "will be dropped.")
+        # --- Conflict warning ---------------------------------------------
+        # Surface time clashes (same pet or across pets) BEFORE the plan, in
+        # plain language, so the owner sees exactly which task is dropped and
+        # why — and can fix it by changing a preferred time. find_conflicts()
+        # lists the overlapping pairs; resolve_conflicts() tells us which task
+        # wins each clash.
+        conflicts = scheduler.find_conflicts()
+        if conflicts:
+            kept_ids = {id(t) for t in scheduler.resolve_conflicts()}
+            st.warning(
+                f"⏰ **{len(conflicts)} time conflict(s) found.** "
+                "You can only be in one place at a time, so PawPal+ keeps the "
+                "higher-priority task in each clash and drops the other."
+            )
+            conflict_rows = [
+                {
+                    "Task A": f"{a.name} · {_pet_name(a)} ({a.preferred_time:%H:%M})",
+                    "Task B": f"{b.name} · {_pet_name(b)} ({b.preferred_time:%H:%M})",
+                    "What PawPal+ does": _conflict_outcome(a, b, kept_ids),
+                }
+                for a, b in conflicts
+            ]
+            st.dataframe(pd.DataFrame(conflict_rows), hide_index=True,
+                         use_container_width=True)
+            st.caption("💡 Want to keep both? Give one of them a different "
+                       "preferred time above, then regenerate.")
+        else:
+            st.success("✅ No time conflicts — every task has room on the timeline.")
 
+        # --- Build and show the plan --------------------------------------
         scheduler.generate_plan(period="daily")
-        st.text(str(scheduler))       # the timeline, grouped by pet
-        st.text(scheduler.explain())  # the reasoning (included / excluded)
+
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Tasks scheduled", len(scheduler.scheduled))
+        col2.metric("Time used", f"{scheduler.total_time_used} min")
+        col3.metric("Daily budget", f"{owner.available_minutes} min")
+
+        if scheduler.scheduled:
+            # Timeline as a clean table, in clock order, keyed on the time slot.
+            plan_rows = [
+                {
+                    "Time": f"{slot.start_time:%H:%M}–{slot.end_time:%H:%M}",
+                    "Pet": _pet_name(slot.task),
+                    "Task": slot.task.name,
+                    "Category": slot.task.category,
+                    "Duration": f"{slot.task.duration_minutes} min",
+                    "Priority": slot.task.priority,
+                }
+                for slot in sorted(scheduler.scheduled, key=lambda s: s.start_time)
+            ]
+            st.subheader("Today's plan")
+            st.table(pd.DataFrame(plan_rows).set_index("Time"))
+        else:
+            st.info("Nothing could be scheduled with the current settings.")
+
+        # Anything left out (a conflict loss or no time budget left).
+        if scheduler.excluded:
+            dropped = ", ".join(f"{t.name} ({_pet_name(t)})" for t in scheduler.excluded)
+            st.warning(f"Left out of today's plan (conflict or not enough time): {dropped}")
+
+        # Full reasoning stays available but tucked away so it doesn't clutter.
+        with st.expander("Why this plan? (included / excluded reasoning)"):
+            st.text(scheduler.explain())

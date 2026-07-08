@@ -22,6 +22,40 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## ✨ Features
+
+PawPal+ implements the following scheduling algorithms (all in `pawpal_system.py`;
+see [Smarter Scheduling](#-smarter-scheduling) below for the method-level details):
+
+- **Priority-aware daily planning** — builds a day's plan by running a fixed
+  pipeline: resolve conflicts → sort by priority → fit within the time budget →
+  place tasks on a timeline (`Scheduler.generate_plan`).
+- **Sorting by time** — orders tasks chronologically by preferred time, with
+  flexible (no-time) tasks placed last (`Scheduler.sort_by_time`).
+- **Sorting by priority** — ranks tasks by the owner's per-category weight
+  first, then each task's own low/medium/high priority as a tiebreaker
+  (`Scheduler.sort_by_priority`).
+- **Conflict warnings** — detects tasks whose time ranges overlap (same pet or
+  across pets) and reports each clashing pair without dropping anything, so the
+  owner can be warned (`find_conflicts`, `describe_conflicts`, `check_conflicts`).
+- **Conflict resolution** — when overlaps exist, keeps the higher-priority task
+  of each overlapping group and drops the rest (`resolve_conflicts`).
+- **Time-budget filtering** — keeps tasks until the owner's available minutes
+  run out, while never dropping a time-critical task such as medication
+  (`filter_by_available_time`).
+- **Gap-aware placement** — slots flexible tasks into the earliest free gap
+  around fixed-time tasks instead of piling them up at the end of the day
+  (`_earliest_gap`, `_place`).
+- **Daily & weekly recurrence** — completing a recurring task automatically
+  spawns the next occurrence with its due date rolled forward (+1 day / +7 days)
+  (`Task.mark_complete`, `Task._spawn_next_occurrence`).
+- **Multi-dose medication** — expands a medication with several daily doses into
+  one scheduled entry per dose time (`Task.expand_doses`).
+- **Filtering by pet or status** — returns the subset of tasks matching a
+  completion status, a pet name, or both (`Scheduler.filter_tasks`).
+- **Plan explanation** — produces human-readable reasoning for why each task was
+  included, excluded, or ordered the way it was (`Scheduler.explain`).
+
 ## Getting started
 
 ### Setup
@@ -173,10 +207,10 @@ tests\test_pawpal.py ...............                                     [100%]
 
 All 15 tests pass and cover the happy paths plus the highest-risk edge cases
 (duplicate times, boundary-touching tasks, recurrence rollover, empty input).
-Knocking off one star because a few behaviors aren't pinned down yet — notably
+Knocking off one star because a few behaviors aren't pinned down yet 
 the **midnight-wrap** arithmetic in `_from_minutes` (a task running past 24:00
 wraps silently) and **gap-aware placement** of flexible tasks around fixed ones.
-Once those have explicit tests, this moves to 5/5.
+
 
 ## 📐 Smarter Scheduling
 
@@ -243,12 +277,121 @@ maps each feature to the method that implements it; details follow.
 
 ## 📸 Demo Walkthrough
 
-Describe your app in numbered steps so a reader can follow along without watching a video:
+### Main UI features
 
-1. <!-- Describe this step -->
-2. <!-- Describe this step -->
-3. <!-- Describe this step -->
-4. <!-- Describe this step -->
-5. <!-- Add more steps as needed -->
+The Streamlit app (`app.py`) is organized top-to-bottom into four areas:
 
-**Screenshot or video** *(optional)*: <!-- Insert a screenshot or link to a demo video here -->
+- **Owner** — edit the owner's name, total available minutes for the day, and
+  preferred start time. These constraints drive every scheduling decision.
+- **Pets** — add a pet (name, species, optional breed) or remove one. Each pet
+  shows a live count of its tasks.
+- **Tasks** — add a task for a chosen pet, setting its category, duration,
+  priority, recurrence (one-time / daily / weekly), and an optional preferred
+  time. Each task row has **Done** (marks it complete — and spawns the next
+  occurrence for recurring tasks) and **Remove** buttons. Pending tasks are
+  listed in clock order, with completed ones grouped separately underneath.
+- **Build Schedule** — press **Generate schedule** to build and display the
+  day's plan.
+
+### Example workflow
+
+1. **Set the owner's constraints** — e.g. 120 available minutes, starting at
+   08:00.
+2. **Add a pet** — type "Biscuit", pick "dog", submit. Biscuit now appears with
+   "0 task(s)".
+3. **Add tasks for the pet** — e.g. an "Insulin" medication and a "Morning walk",
+   each with a duration, priority, and preferred time.
+4. **View the task list** — tasks appear sorted by time; mark one **Done** to see
+   it move to the completed group (a daily task also spawns tomorrow's copy).
+5. **Generate the schedule** — press the button to see today's plan, any
+   conflict warnings, and the reasoning behind what was included or dropped.
+
+### Key Scheduler behaviors shown
+
+- **Sorting by time** — the task list and the generated plan are ordered
+  earliest-first; flexible ("anytime") tasks fall to the end.
+- **Filtering** — completed vs. pending tasks are separated, and the schedule
+  respects the owner's time budget.
+- **Conflict warnings** — if two tasks overlap in time (for the same pet *or*
+  across pets), the app shows an amber warning naming each clashing pair and
+  states which task it will keep and which it will drop.
+- **Conflict resolution** — the plan keeps the higher-priority task of each
+  overlapping pair and lists the loser under "Excluded".
+- **Priority ordering** — the reasoning view shows each task's category weight,
+  so the owner can see *why* medication outranks grooming.
+- **Recurrence** — marking a daily/weekly task Done rolls its due date forward
+  (+1 day / +7 days) and creates the next pending occurrence.
+
+### Sample CLI output (`python main.py`)
+
+Running the terminal demo builds an owner (Sam) with two pets (Biscuit and Miso)
+and a deliberate cross-pet time clash, then exercises sorting, filtering,
+recurrence, conflict detection, and the full plan:
+
+```text
+Sam cares for 2 pets: Biscuit (Golden Retriever), Miso (Tabby)
+
+Tasks as entered:
+  18:00  [Biscuit] Evening walk - pending
+  09:30  [Miso] Brush coat - complete
+  anytime  [Biscuit] Insulin - pending
+  09:00  [Miso] Feed - complete
+  08:30  [Biscuit] Breakfast - pending
+  08:35  [Miso] Litter cleanup - pending
+
+Sorted by time (sort_by_time):
+  08:30  [Biscuit] Breakfast - pending
+  08:35  [Miso] Litter cleanup - pending
+  09:00  [Miso] Feed - complete
+  09:30  [Miso] Brush coat - complete
+  18:00  [Biscuit] Evening walk - pending
+  anytime  [Biscuit] Insulin - pending
+
+Pending only (filter_tasks status='pending'):
+  18:00  [Biscuit] Evening walk - pending
+  anytime  [Biscuit] Insulin - pending
+  08:30  [Biscuit] Breakfast - pending
+  08:35  [Miso] Litter cleanup - pending
+
+Complete only (filter_tasks status='complete'):
+  09:30  [Miso] Brush coat - complete
+  09:00  [Miso] Feed - complete
+
+Biscuit's tasks (filter_tasks pet_name='Biscuit'):
+  18:00  [Biscuit] Evening walk - pending
+  anytime  [Biscuit] Insulin - pending
+  08:30  [Biscuit] Breakfast - pending
+
+Recurrence (mark_complete spawns the next occurrence):
+  Daily walk (daily): due 2026-07-07 -> next due 2026-07-08 [pending]
+  Weekly bath (weekly): due 2026-07-07 -> next due 2026-07-14 [pending]
+
+Conflict check (check_conflicts):
+WARNING: 1 time conflict(s) detected:
+  - [Biscuit] Breakfast (08:30) overlaps [Miso] Litter cleanup (08:35)
+
+Today's Schedule - 6 item(s), 75 min:
+  Biscuit (Golden Retriever):
+    08:00-08:05  Insulin
+    08:30-08:45  Breakfast
+    18:00-18:30  Evening walk
+    20:00-20:05  Insulin
+  Miso (Tabby):
+    09:00-09:10  Feed
+    09:30-09:40  Brush coat
+
+Schedule reasoning:
+  Budget: 120 min (used 75).
+  Included (in priority order):
+    - [Biscuit] Insulin at 08:00 [weight 10, medium]
+    - [Biscuit] Breakfast at 08:30 [weight 8, medium]
+    - [Miso] Feed at 09:00 [weight 8, medium]
+    - [Miso] Brush coat at 09:30 [weight 4, medium]
+    - [Biscuit] Evening walk at 18:00 [weight 5, medium]
+    - [Biscuit] Insulin at 20:00 [weight 10, medium]
+  Excluded (conflicted or out of time):
+    - [Miso] Litter cleanup
+```
+
+> Note: the recurrence due dates above (2026-07-07 → 07-08 / 07-14) are relative
+> to the day you run the demo, since new tasks default to today's date.

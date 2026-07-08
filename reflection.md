@@ -35,7 +35,7 @@ Objects:
  - prefered time
  - task they want to prioritize 
  - prefered durations 
-- Schedule
+- Schedule Maker
 
 CLAUDE ASSITED IDEAS FOR CLASSES:
 
@@ -191,10 +191,76 @@ This means the plan is not guaranteed to be the fullest possible use of the owne
 - What behaviors did you test?
 - Why were these tests important?
 
+### Response
+
+The suite lives in `tests/test_pawpal.py` (15 tests, all passing under
+`python -m pytest`). It covers the core behaviors of the scheduler:
+
+- **Task basics** — `mark_complete()` flips a task's status to complete, and
+  `add_task()` grows a pet's task list.
+- **Sorting correctness** — `sort_by_time()` returns tasks in chronological
+  order, and flexible ("anytime") tasks with no preferred time sort to the end
+  instead of crashing on a `None` comparison.
+- **Recurrence logic** — completing a *daily* task spawns a pending copy due the
+  next day; a *weekly* task rolls forward 7 days; a *one-time* task never
+  recurs; and marking an already-complete task again does **not** pile up
+  duplicate occurrences.
+- **Conflict detection** — two tasks at the same/overlapping time are flagged as
+  a single pair (`find_conflicts`, `check_conflicts`), while back-to-back tasks
+  that only touch at the boundary are *not* flagged, and flexible tasks never
+  conflict.
+- **Conflict resolution** — the highest-priority task wins its overlapping
+  group, leaving no residual overlaps (this was a regression test for the greedy
+  bug described in section 2).
+- **Time-budget filtering** — an `is_time_critical` task (medication) is kept
+  even when the owner's minutes are already exhausted.
+- **Empty input** — planning an owner/pet with no tasks produces an empty
+  schedule instead of raising.
+
+These mattered because they are the behaviors a pet owner actually depends on:
+that the plan is ordered correctly, that a recurring task reliably reappears the
+next day, that medication is never silently dropped for lack of time, and that
+time clashes are surfaced rather than hidden. They also lock in the two bugs we
+found during design (duration-overlap detection and highest-priority-first
+resolution) so they can't quietly regress.
+
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
 - What edge cases would you test next if you had more time?
+
+### Response 
+
+I am somewhat confident that my schdulre works correctly as all 15 tests do pass, there might be something I missed as I am someone who never owned a pet before. 
+
+
+More edge casses that I would test if I had more time is if there are specific medications a person wants to add (looks like more of a new feature), the midnight wrap, the gap-aware placemnt, multi-dose meds in the full plan, end-to-end priority ordering, and cross-pet conflicts.
+
+### Response
+
+**Confidence: 4 out of 5.** The happy paths and the highest-risk edge cases
+(duplicate times, boundary-touching tasks, recurrence rollover across
+month/year boundaries, over-budget medication, and empty input) are all covered
+and green. I'm holding back the fifth point because a couple of behaviors aren't
+pinned down by a test yet, so I'm trusting the code by reading rather than by
+proof.
+
+Edge cases I would test next, given more time:
+
+- **Midnight wrap** — `_from_minutes` wraps times past 24:00 (e.g. a task
+  starting at 23:50 for 30 minutes). I want a test that documents whether the
+  wrapped end time is intended behavior or a latent bug.
+- **Gap-aware placement** — that a flexible task is actually slotted into a free
+  gap *between* two fixed tasks (via `_earliest_gap`), not just appended after
+  them.
+- **Multi-dose medication in the plan** — that a `times_per_day=3` med both
+  counts as 3× its duration against the budget and produces three separate slots
+  in the generated schedule.
+- **Priority ordering end-to-end** — that `generate_plan` (not just
+  `sort_by_priority` in isolation) places a higher-weight category ahead of a
+  lower one when the budget forces a choice.
+- **Cross-pet conflicts in the full plan** — verifying that a clash between two
+  *different* pets' tasks is resolved the same way a same-pet clash is.
 
 ---
 
@@ -211,3 +277,26 @@ This means the plan is not guaranteed to be the fullest possible use of the owne
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+
+### Response 
+
+**a.** The part I'm most satisfied with is the conflict handling, because it's
+where the real problem-solving happened. Most of the other features are a clean
+single pass — sort, filter, expand. Conflict handling had an actual bug: the
+first version kept a high-priority task but only removed the *first* task it
+clashed with, so a second overlapping task could still sneak into the plan. The
+fix was to handle the highest-priority task first, so once a task is kept it's
+never removed — which means no overlaps can survive. That was a non-obvious
+insight, and I backed it with a regression test
+(`test_resolve_conflicts_leaves_no_overlaps`) so it can't come back. I also like
+that the overlap check gets the small details right: `conflicts_with` compares
+full time ranges (start up to start + duration), not just matching start times,
+so two tasks that simply touch — like 08:00–08:30 and 08:30–09:00 — are
+correctly *not* treated as a conflict, while tasks that actually overlap are.
+Best of all, it pays off in the app: instead of just saying "conflict," the UI
+names both tasks, shows which one is kept and which is dropped, and tells the
+owner how to fix it. "You can't be in two places at once" is the core problem
+for a scheduler, and this solves it safely — important care like medication
+never gets dropped in favor of something minor like grooming.
+
+**b.** If I had another iteration I would improve the scheduler gneerator where they can implement it into their calander device, like Apple Calander, Google Calander, etc so they don't have to manually put it if they truly want to use the generated schedule.

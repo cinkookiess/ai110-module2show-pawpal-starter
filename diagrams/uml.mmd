@@ -1,11 +1,17 @@
 classDiagram
-    %% PawPal+ class diagram — generated from reflection.md
+    %% PawPal+ class diagram — reflects pawpal_system.py
+    %% Static methods are marked with $. Module-level helpers
+    %% (_to_minutes, _from_minutes) and private methods
+    %% (_weight, _place, _earliest_gap, _pet_name) are omitted for clarity.
 
     class Owner {
         +str name
         +int available_minutes
         +time preferred_start_time
         +dict~str, int~ priority_weights
+        +list~Pet~ pets
+        +add_pet(pet) Pet
+        +remove_pet(pet) Pet
         +get_priority_weight(category) int
     }
 
@@ -15,42 +21,66 @@ classDiagram
         +str breed
         +int age
         +Owner owner
+        +list~Task~ tasks
+        +add_task(task) Task
+        +remove_task(task) Task
         +__str__() str
     }
 
     class Task {
         +str name
+        +Pet pet
         +str category
         +int duration_minutes
         +str priority
         +str recurrence
         +time preferred_time
         +bool is_time_critical
+        +date due_date
         +str dosage
         +int times_per_day
         +list~time~ dose_times
-        +__repr__() str
+        +str status
+        +Task next_occurrence
+        +mark_complete() str
         +conflicts_with(other) bool
         +expand_doses() list~dict~
+        +__repr__() str
+    }
+
+    class ScheduledSlot {
+        +Task task
+        +time start_time
+        +time end_time
+        +str day
     }
 
     class Scheduler {
         +Owner owner
-        +Pet pet
         +list~Task~ tasks
-        +list~dict~ scheduled
+        +list~ScheduledSlot~ scheduled
         +list~Task~ excluded
         +int total_time_used
         +generate_plan(period) None
-        +sort_by_priority() list~Task~
-        +filter_by_available_time() list~Task~
-        +resolve_conflicts() list~Task~
+        +sort_by_priority(tasks) list~Task~
+        +sort_by_time(tasks)$ list~Task~
+        +filter_tasks(tasks, status, pet_name)$ list~Task~
+        +filter_by_available_time(tasks) list~Task~
+        +find_conflicts(tasks) list~tuple~
+        +describe_conflicts(tasks) list~str~
+        +check_conflicts(tasks) str
+        +resolve_conflicts(tasks) list~Task~
         +explain() str
         +__str__() str
     }
 
+    Owner "1" o-- "*" Pet : pets
     Pet --> Owner : owner
-    Scheduler --> Owner : owner
-    Scheduler --> Pet : pet
-    Scheduler o-- Task : tasks
+    Pet "1" o-- "*" Task : tasks
+    Task --> Pet : pet
+    Task ..> Task : next_occurrence
     Task ..> Task : conflicts_with
+    Scheduler --> Owner : owner
+    Scheduler o-- Task : tasks
+    Scheduler *-- ScheduledSlot : scheduled
+    ScheduledSlot --> Task : task
