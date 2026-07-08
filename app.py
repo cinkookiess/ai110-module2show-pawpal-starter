@@ -120,6 +120,7 @@ else:
             duration = st.number_input("Duration (min)", min_value=1, max_value=240, value=20)
         with col3:
             priority = st.selectbox("Priority", ["low", "medium", "high"], index=1)
+        recurrence = st.selectbox("Repeats", ["one_time", "daily", "weekly"])
         use_time = st.checkbox("Set a preferred time")
         preferred_time = st.time_input("Preferred time", value=time(9, 0)) if use_time else None
 
@@ -128,19 +129,32 @@ else:
             target_pet = owner.pets[[str(p) for p in owner.pets].index(pet_label)]
             Task(
                 task_title, category, int(duration), pet=target_pet,
-                priority=priority, preferred_time=preferred_time,
+                priority=priority, recurrence=recurrence, preferred_time=preferred_time,
                 is_time_critical=(category == "medication"),
             )
             st.success(f"Added '{task_title}' for {target_pet}.")
 
-    # Show each pet's tasks (with a remove button and completion status).
+    # Show each pet's tasks in clock order (Scheduler.sort_by_time). Each row
+    # has a "Done" button (which, for a daily/weekly task, spawns the next
+    # occurrence) and a "Remove" button. sort_by_time is a staticmethod, so
+    # it's called on the class directly — no Scheduler instance needed.
     for pet in owner.pets:
         if pet.tasks:
             st.write(f"**{pet}**")
-            for task in list(pet.tasks):
-                row, action = st.columns([5, 1])
-                row.write(f"{task.name} ({task.category}, {task.duration_minutes} min) "
-                          f"— {task.status}")
+            for task in Scheduler.sort_by_time(list(pet.tasks)):
+                row, done, action = st.columns([5, 1, 1])
+                # Show the preferred time (or "anytime") so the ordering is visible.
+                when = f"{task.preferred_time:%H:%M}" if task.preferred_time else "anytime"
+                # Note the recurrence + due date for repeating tasks.
+                repeat = "" if task.recurrence == "one_time" else f" · {task.recurrence} (due {task.due_date:%b %d})"
+                row.write(f"{when} · {task.name} "
+                          f"({task.category}, {task.duration_minutes} min) "
+                          f"— {task.status}{repeat}")
+                # Done is disabled once complete so a recurring task can't spawn twice.
+                if done.button("Done", key=f"done_task_{id(task)}",
+                               disabled=task.status == "complete"):
+                    task.mark_complete()  # spawns next_occurrence if recurring
+                    st.rerun()
                 if action.button("Remove", key=f"rm_task_{id(task)}"):
                     pet.remove_task(task)
                     st.rerun()
@@ -155,6 +169,15 @@ if st.button("Generate schedule"):
         st.warning("No tasks to schedule yet.")
     else:
         scheduler = Scheduler(owner, all_tasks)
+
+        # Warn about time clashes (same pet or across pets) before resolving
+        # them, so the owner knows a task will be dropped and why. check_conflicts
+        # returns a ready-to-show message ("" when there's nothing to warn about).
+        warning = scheduler.check_conflicts()
+        if warning:
+            st.warning(warning + "\n\nThe lower-priority task in each pair "
+                       "will be dropped.")
+
         scheduler.generate_plan(period="daily")
         st.text(str(scheduler))       # the timeline, grouped by pet
         st.text(scheduler.explain())  # the reasoning (included / excluded)
