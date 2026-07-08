@@ -47,6 +47,13 @@ class Owner:
             pet.owner = self
         return pet
 
+    def remove_pet(self, pet):
+        """Remove a pet from this owner. Safe to call if it isn't there."""
+        if pet in self.pets:
+            self.pets.remove(pet)
+            pet.owner = None
+        return pet
+
     def get_priority_weight(self, category):
         """Lookup helper used by Scheduler.
 
@@ -79,6 +86,13 @@ class Pet:
         if task not in self.tasks:
             self.tasks.append(task)
             task.pet = self
+        return task
+
+    def remove_task(self, task):
+        """Remove a task from this pet. Safe to call if it isn't there."""
+        if task in self.tasks:
+            self.tasks.remove(task)
+            task.pet = None
         return task
 
     def __str__(self):

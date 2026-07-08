@@ -73,9 +73,15 @@ st.divider()
 st.subheader("Pets")
 with st.form("add_pet_form", clear_on_submit=True):
     pet_name = st.text_input("Pet name", value="Mochi")
-    species = st.selectbox("Species", ["dog", "cat", "other"])
+    species_choice = st.selectbox("Species", ["dog", "cat", "other"])
+    # Always shown (forms can't reveal fields mid-edit); only used when "other".
+    other_species = st.text_input("If 'other', type the species", value="")
     breed = st.text_input("Breed (optional)", value="")
     if st.form_submit_button("Add pet"):
+        if species_choice == "other":
+            species = other_species.strip() or "other"  # fall back if left blank
+        else:
+            species = species_choice
         if pet_name.strip():
             Pet(pet_name.strip(), species, owner, breed=breed.strip())  # auto-registers
             st.success(f"Added {pet_name}.")
@@ -84,8 +90,14 @@ with st.form("add_pet_form", clear_on_submit=True):
 
 if owner.pets:
     st.write(f"{owner.name} has {len(owner.pets)} pet(s):")
-    for pet in owner.pets:
-        st.write(f"- {pet} · {len(pet.tasks)} task(s)")
+    # Iterate a copy so removing during the loop can't disturb it.
+    for pet in list(owner.pets):
+        row, action = st.columns([4, 1])
+        row.write(f"{pet} · {len(pet.tasks)} task(s)")
+        # id(pet) gives each button a stable, unique key.
+        if action.button("Remove", key=f"rm_pet_{id(pet)}"):
+            owner.remove_pet(pet)
+            st.rerun()  # redraw immediately so the pet disappears from the list
 else:
     st.info("No pets yet. Add one above.")
 
@@ -121,13 +133,17 @@ else:
             )
             st.success(f"Added '{task_title}' for {target_pet}.")
 
-    # Show each pet's tasks (and their completion status).
+    # Show each pet's tasks (with a remove button and completion status).
     for pet in owner.pets:
         if pet.tasks:
             st.write(f"**{pet}**")
-            for task in pet.tasks:
-                st.write(f"- {task.name} ({task.category}, {task.duration_minutes} min) "
-                         f"— {task.status}")
+            for task in list(pet.tasks):
+                row, action = st.columns([5, 1])
+                row.write(f"{task.name} ({task.category}, {task.duration_minutes} min) "
+                          f"— {task.status}")
+                if action.button("Remove", key=f"rm_task_{id(task)}"):
+                    pet.remove_task(task)
+                    st.rerun()
 
 st.divider()
 
