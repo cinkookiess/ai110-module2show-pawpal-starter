@@ -3,6 +3,9 @@ from datetime import time
 import pandas as pd
 import streamlit as st
 
+from formatting import (
+    emoji_for, priority_label, status_label, task_label,
+)
 from pawpal_system import Owner, Pet, Task, Scheduler
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
@@ -144,9 +147,11 @@ else:
         when = f"{task.preferred_time:%H:%M}" if task.preferred_time else "anytime"
         # Note the recurrence + due date for repeating tasks.
         repeat = "" if task.recurrence == "one_time" else f" · {task.recurrence} (due {task.due_date:%b %d})"
-        row.write(f"{when} · {task.name} "
+        # task_label prefixes the category emoji (💊/🚶/…); status_label adds
+        # the ✅/⏳ status icon, so type and progress read at a glance.
+        row.write(f"{when} · {task_label(task)} "
                   f"({task.category}, {task.duration_minutes} min) "
-                  f"— {task.status}{repeat}")
+                  f"— {status_label(task.status)}{repeat}")
         if done.button("Done", key=f"done_task_{id(task)}",
                        disabled=task.status == "complete"):
             task.mark_complete()  # spawns next_occurrence if recurring
@@ -222,8 +227,8 @@ if st.button("Generate schedule"):
             )
             conflict_rows = [
                 {
-                    "Task A": f"{a.name} · {_pet_name(a)} ({a.preferred_time:%H:%M})",
-                    "Task B": f"{b.name} · {_pet_name(b)} ({b.preferred_time:%H:%M})",
+                    "Task A": f"{task_label(a)} · {_pet_name(a)} ({a.preferred_time:%H:%M})",
+                    "Task B": f"{task_label(b)} · {_pet_name(b)} ({b.preferred_time:%H:%M})",
                     "What PawPal+ does": _conflict_outcome(a, b, kept_ids),
                 }
                 for a, b in conflicts
@@ -249,10 +254,10 @@ if st.button("Generate schedule"):
                 {
                     "Time": f"{slot.start_time:%H:%M}–{slot.end_time:%H:%M}",
                     "Pet": _pet_name(slot.task),
-                    "Task": slot.task.name,
-                    "Category": slot.task.category,
+                    "Task": task_label(slot.task),
+                    "Category": f"{emoji_for(slot.task.category)} {slot.task.category}",
                     "Duration": f"{slot.task.duration_minutes} min",
-                    "Priority": slot.task.priority,
+                    "Priority": priority_label(slot.task.priority),
                 }
                 for slot in sorted(scheduler.scheduled, key=lambda s: s.start_time)
             ]
@@ -263,7 +268,7 @@ if st.button("Generate schedule"):
 
         # Anything left out (a conflict loss or no time budget left).
         if scheduler.excluded:
-            dropped = ", ".join(f"{t.name} ({_pet_name(t)})" for t in scheduler.excluded)
+            dropped = ", ".join(f"{task_label(t)} ({_pet_name(t)})" for t in scheduler.excluded)
             st.warning(f"Left out of today's plan (conflict or not enough time): {dropped}")
 
         # Full reasoning stays available but tucked away so it doesn't clutter.

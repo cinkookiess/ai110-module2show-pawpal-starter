@@ -1,2 +1,4 @@
 streamlit>=1.30
 pytest>=7.0
+tabulate>=0.9      # structured CLI tables in the terminal demo (main.py)
+colorama>=0.4      # cross-platform ANSI colors for the terminal demo (main.py)

@@ -117,6 +117,48 @@ A full sample of the terminal demo's output (`python main.py`) is shown in the
 [Sample CLI output](#sample-cli-output-python-mainpy) section below, under
 **Demo Walkthrough**.
 
+## 🎨 Output formatting (Challenge 4)
+
+Formatting is applied in **both** front ends — the terminal demo (`main.py`)
+and the Streamlit app (`app.py`) — and the scheduling logic in
+`pawpal_system.py` is left untouched.
+
+The shared emoji vocabulary (task-type, status, and priority icons) lives in
+one place, [`formatting.py`](formatting.py), so the CLI and the web UI can never
+drift apart. That module is deliberately UI-agnostic (plain strings, no colors,
+no Streamlit calls); each front end adds its own styling on top:
+
+- **Terminal (`main.py`)** — layers `colorama` colors and `tabulate` tables over
+  the shared emojis (see the **presentation helpers** section at the top).
+- **Streamlit (`app.py`)** — shows the same emojis in the task list, the
+  generated-plan table, the conflict table, and the "left out" notice.
+
+| Feature | How it looks | Library / function |
+|---------|--------------|--------------------|
+| **Task-type emojis** | 🚶 walk · 🍽️ feed · 💊 medication · 🧩 enrichment · ✂️ grooming, prefixed to every task name (CLI **and** Streamlit) | `formatting.CATEGORY_EMOJI` + `emoji_for()` / `task_label()` |
+| **Status indicators** | ✅ complete vs. ⏳ pending on every task (green/amber in the terminal) | `formatting.STATUS_EMOJI` / `status_label()`; terminal color via `colorama` in `colored_status()` |
+| **Priority indicators** | 🔴 high · 🟡 medium · 🔵 low in the plan (red/yellow/cyan in the terminal) | `formatting.PRIORITY_EMOJI` / `priority_label()`; terminal color via `colorama` in `colored_priority()` |
+| **Structured CLI tables** | Every task list and the final plan render as aligned, boxed tables instead of ragged text | [`tabulate`](https://pypi.org/project/tabulate/) — `tabulate(rows, headers=..., tablefmt="rounded_grid")` in `task_table()` and the plan/recurrence tables |
+| **Section headers & legend** | Bold cyan headers separate each part; a legend at the end explains every color and emoji | `colorama` — `section()` helper (terminal only) |
+
+Implementation notes:
+
+- **`colorama.init(autoreset=True)`** makes ANSI color codes work on Windows
+  terminals (not just macOS/Linux) and resets the color after every line so a
+  colored cell never "bleeds" into the next.
+- **UTF-8 stdout** — Windows consoles often default to a legacy codepage
+  (cp1252) that can't encode emoji, so `main.py` calls
+  `sys.stdout.reconfigure(encoding="utf-8")` **before** `colorama` wraps the
+  stream, preventing a `UnicodeEncodeError` on the paw prints.
+- **`tabulate` + ANSI** — `tabulate` ignores embedded color codes when
+  measuring column widths, so color-coded cells still line up in their columns.
+
+Install the two new dependencies (already in `requirements.txt`):
+
+```bash
+pip install -r requirements.txt   # includes tabulate and colorama
+```
+
 ## 🧪 Testing PawPal+
 
 Run the full test suite from the project root:
