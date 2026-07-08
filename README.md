@@ -56,6 +56,28 @@ see [Smarter Scheduling](#-smarter-scheduling) below for the method-level detail
 - **Plan explanation** — produces human-readable reasoning for why each task was
   included, excluded, or ordered the way it was (`Scheduler.explain`).
 
+## 🧩 Classes
+
+The system is built from four core classes (all in `pawpal_system.py`; see the
+UML in [`diagrams/uml.mmd`](diagrams/uml.mmd) and the design notes in
+[`reflection.md`](reflection.md)):
+
+- **`Owner`** — the pet owner and their scheduling constraints: name, total
+  `available_minutes` for the day, `preferred_start_time`, and per-category
+  `priority_weights`. Holds the list of `pets` and knows how to add/remove them.
+- **`Pet`** — a single animal being cared for: name, species, optional breed/age,
+  a back-reference to its `owner`, and its own list of `tasks` (with
+  add/remove methods).
+- **`Task`** — one care task (walk, feed, medication, enrichment, grooming),
+  including its duration, priority, recurrence, optional preferred time, and
+  medication fields. Knows how to `mark_complete()` (spawning the next
+  occurrence for recurring tasks), test `conflicts_with()` another task, and
+  `expand_doses()` for multi-dose meds.
+- **`Scheduler`** — the engine: takes an owner plus all their tasks (across every
+  pet) and one shared time budget, then sorts, filters, detects/resolves
+  conflicts, and builds an explained daily plan. A small `ScheduledSlot` helper
+  represents each placed task on the timeline.
+
 ## Getting started
 
 ### Setup
@@ -64,6 +86,19 @@ see [Smarter Scheduling](#-smarter-scheduling) below for the method-level detail
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+### Running the app and demo
+
+```bash
+# Launch the Streamlit app (the main deliverable):
+streamlit run app.py
+
+# Run the terminal demo (end-to-end walkthrough — output shown below):
+python main.py
+
+# Run the test suite:
+python -m pytest
 ```
 
 ### Suggested workflow
@@ -78,89 +113,9 @@ pip install -r requirements.txt
 
 ## 🖥️ Sample Output
 
-Paste a sample of your app's CLI or Streamlit output here so a reader can see what a generated plan looks like:
-
-```
-# e.g.:
-# Daily plan for Biscuit (Golden Retriever):
-#   08:00 — Morning walk (30 min) [priority: high]
-#   09:00 — Feeding (10 min) [priority: high]
-#   ...
-```
-
-### TRIAL 1
-
-Sam cares for 2 pets: Biscuit (Golden Retriever), Miso (Tabby)
-
-Today's Schedule - 6 item(s), 75 min:
-  Biscuit (Golden Retriever):
-    08:00-08:05  Insulin
-    08:30-08:45  Breakfast
-    18:00-18:30  Evening walk
-    20:00-20:05  Insulin
-  Miso (Tabby):
-    09:00-09:10  Feed
-    09:30-09:40  Brush coat
-
-Schedule reasoning:
-  Budget: 120 min (used 75).
-  Included (in priority order):
-    - [Biscuit] Insulin at 08:00 [weight 10]
-    - [Biscuit] Insulin at 20:00 [weight 10]
-    - [Biscuit] Breakfast at 08:30 [weight 8]
-    - [Miso] Feed at 09:00 [weight 8]
-    - [Biscuit] Evening walk at 18:00 [weight 5]
-    - [Miso] Brush coat at 09:30 [weight 4]
-
-### TRIAL 2 - after adding the new algorithms
-
-Tasks as entered:
-  18:00  [Biscuit] Evening walk - pending
-  09:30  [Miso] Brush coat - complete
-  anytime  [Biscuit] Insulin - pending
-  09:00  [Miso] Feed - complete
-  08:30  [Biscuit] Breakfast - pending
-
-Sorted by time (sort_by_time):
-  08:30  [Biscuit] Breakfast - pending
-  09:00  [Miso] Feed - complete
-  09:30  [Miso] Brush coat - complete
-  18:00  [Biscuit] Evening walk - pending
-  anytime  [Biscuit] Insulin - pending
-
-Pending only (filter_tasks status='pending'):
-  18:00  [Biscuit] Evening walk - pending
-  anytime  [Biscuit] Insulin - pending
-  08:30  [Biscuit] Breakfast - pending
-
-Complete only (filter_tasks status='complete'):
-  09:30  [Miso] Brush coat - complete
-  09:00  [Miso] Feed - complete
-
-Biscuit's tasks (filter_tasks pet_name='Biscuit'):
-  18:00  [Biscuit] Evening walk - pending
-  anytime  [Biscuit] Insulin - pending
-  08:30  [Biscuit] Breakfast - pending
-
-Today's Schedule - 6 item(s), 75 min:
-  Biscuit (Golden Retriever):
-    08:00-08:05  Insulin
-    08:30-08:45  Breakfast
-    18:00-18:30  Evening walk
-    20:00-20:05  Insulin
-  Miso (Tabby):
-    09:00-09:10  Feed
-    09:30-09:40  Brush coat
-
-Schedule reasoning:
-  Budget: 120 min (used 75).
-  Included (in priority order):
-    - [Biscuit] Insulin at 08:00 [weight 10, medium]
-    - [Biscuit] Breakfast at 08:30 [weight 8, medium]
-    - [Miso] Feed at 09:00 [weight 8, medium]
-    - [Miso] Brush coat at 09:30 [weight 4, medium]
-    - [Biscuit] Evening walk at 18:00 [weight 5, medium]
-    - [Biscuit] Insulin at 20:00 [weight 10, medium]
+A full sample of the terminal demo's output (`python main.py`) is shown in the
+[Sample CLI output](#sample-cli-output-python-mainpy) section below, under
+**Demo Walkthrough**.
 
 ## 🧪 Testing PawPal+
 

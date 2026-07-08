@@ -182,6 +182,13 @@ This means the plan is not guaranteed to be the fullest possible use of the owne
 - Describe one moment where you did not accept an AI suggestion as-is.
 - How did you evaluate or verify what the AI suggested?
 
+
+### Responses
+
+**a.** The way I used the AI was I first read the prompt to myself and came up with my classes and attribtues. I then used AI, gave it the README of the project and added my ideas and then asked for class suggestions for the logical strucutre. From there I would write out some of the classes and asked the AI for verification for the code and see if there are needs for suggestions. The prompts and questions that were helpful was telling the AI to exmplain the functions that I wanted to input beucase it was able to celarly understand what I want the classes to do and how they collaborated with each other.
+
+**b.** One momemnt where I didn't accept the AI suggestion early on in the project was when it gave me seven classes instead of the four that I had brainstormed (did not realize it was the main four that were required) with the methods/attributes. From then on I would ask the AI for clarification for the code and something that I also did not accept was it using the `@dataclass` as it was something I was unfamilar with but it explained it to me that it was a differnt way while loosing the auto-generated __repr__. I evaluted the AI suggestions based on my understanding and goal of trying to make the schedule as realistic as possible with multiple scenrios and testing. 
+
 ---
 
 ## 4. Testing and Verification
@@ -280,23 +287,8 @@ Edge cases I would test next, given more time:
 
 ### Response 
 
-**a.** The part I'm most satisfied with is the conflict handling, because it's
-where the real problem-solving happened. Most of the other features are a clean
-single pass — sort, filter, expand. Conflict handling had an actual bug: the
-first version kept a high-priority task but only removed the *first* task it
-clashed with, so a second overlapping task could still sneak into the plan. The
-fix was to handle the highest-priority task first, so once a task is kept it's
-never removed — which means no overlaps can survive. That was a non-obvious
-insight, and I backed it with a regression test
-(`test_resolve_conflicts_leaves_no_overlaps`) so it can't come back. I also like
-that the overlap check gets the small details right: `conflicts_with` compares
-full time ranges (start up to start + duration), not just matching start times,
-so two tasks that simply touch — like 08:00–08:30 and 08:30–09:00 — are
-correctly *not* treated as a conflict, while tasks that actually overlap are.
-Best of all, it pays off in the app: instead of just saying "conflict," the UI
-names both tasks, shows which one is kept and which is dropped, and tells the
-owner how to fix it. "You can't be in two places at once" is the core problem
-for a scheduler, and this solves it safely — important care like medication
-never gets dropped in favor of something minor like grooming.
+**a.** The part I'm most satisfied with is the conflict handling, because it's where the real problem-solving happened. Most of the other features are a clean single pass — sort, filter, expand. Conflict handling had an actual bug: the first version kept a high-priority task but only removed the *first* task it clashed with, so a second overlapping task could still sneak into the plan. The fix was to handle the highest-priority task first, so once a task is kept it's never removed — which means no overlaps can survive. That was a non-obvious insight, and I backed it with a regression test (`test_resolve_conflicts_leaves_no_overlaps`) so it can't come back. I also like that the overlap check gets the small details right: `conflicts_with` compares full time ranges (start up to start + duration), not just matching start times, so two tasks that simply touch — like 08:00–08:30 and 08:30–09:00 — are correctly *not* treated as a conflict, while tasks that actually overlap are. Best of all, it pays off in the app: instead of just saying "conflict," the UI names both tasks, shows which one is kept and which is dropped, and tells the owner how to fix it. "You can't be in two places at once" is the core problem for a scheduler, and this solves it safely — important care like medication never gets dropped in favor of something minor like grooming.
 
 **b.** If I had another iteration I would improve the scheduler gneerator where they can implement it into their calander device, like Apple Calander, Google Calander, etc so they don't have to manually put it if they truly want to use the generated schedule.
+
+**c.** One important thing I learned is that communicating with the AI about possible additions or changes is important for you and the Ai to understand the task/goal. Then when the AI provides suggestions you can ask further questions which then makes the AI suggestion more clear and not just accepting blind additions to the files. 
